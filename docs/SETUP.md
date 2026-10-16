@@ -2,6 +2,12 @@
 
 ใช้เพียง **Cloudflare**, **LINE Developers / LINE OA Manager** และ **GitHub** สำหรับเก็บโค้ดและอัปเดตอัตโนมัติ ไม่ต้องสร้าง Google Apps Script เพิ่ม
 
+## URL ที่นำขึ้น Cloudflare แล้ว
+
+`https://baac-dcm-tracker-v2.baac-prachak.workers.dev`
+
+สร้าง Worker และ D1 สำเร็จแล้ว ตรวจ health ฐานข้อมูลและหน้าเว็บผ่าน ระบบปิดโหมดทดลองบนเว็บจริง ขั้นต่อไปให้ตั้ง URL นี้เป็น LIFF Endpoint URL แล้วเข้าสู่ LINE เพื่อรับรหัสบัญชีสำหรับตั้งผู้ดูแลคนแรก การเข้าใช้จริงด้วย LINE และการผูก Rich Menu ยังต้องตรวจต่อหลังเปลี่ยน Endpoint
+
 ## 1. ให้สิทธิ์ deploy กับ Cloudflare
 
 ใน Cloudflare เปิด My Profile → API Tokens → Create Token เลือกบัญชีที่จะใช้ แล้วกำหนด:
