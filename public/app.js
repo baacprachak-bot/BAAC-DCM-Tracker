@@ -77,7 +77,10 @@ async function boot() {
   $('#demo').hidden = false;
   if (config.sandbox) {
    $('#demo span').textContent = 'พื้นที่ทดลอง · ฐานข้อมูลสมมติแยก';
+   const selectedRole = new URLSearchParams(location.search).get('role');
+   if ([...$('#role').options].some(option => option.value === selectedRole)) $('#role').value = selectedRole;
    const back = text('a', 'กลับระบบจริง'); back.href = '/'; $('#demo').append(back);
+   const preview = text('a', 'ลอง Rich Menu'); preview.href = '/sandbox/menu'; $('#demo').append(preview);
   }
   $('#role').onchange = async () => { try { await identify(); page = me.role === 'credit_head' ? 'create' : me.role === 'admin' ? 'staff' : 'pending'; listPage = 1; search = ''; await render(); } catch (e) { notify(e.message, true); } };
  }

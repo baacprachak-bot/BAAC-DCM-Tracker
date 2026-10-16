@@ -124,6 +124,12 @@ test('built Worker serves current UI and security headers without Node APIs', as
   assert.equal(home.status, 200); assert.match(await home.text(), /บันทึกลูกค้า/);
   assert.match(home.headers.get('Content-Security-Policy'), /frame-ancestors 'none'/);
   assert.equal(home.headers.get('Cache-Control'), 'no-store');
+  const menu = await worker.fetch(new Request('https://worker.example/sandbox/menu'), {});
+  const html = await menu.text();
+  assert.equal(menu.status, 200);
+  assert.match(html, /data:image\/png;base64,/);
+  assert.ok(!html.includes('__RICH_MENU_IMAGE__'));
+  assert.match(html, /\/sandbox\?page=pending/);
   const { handler, env } = fixture(t);
   assert.equal((await handler(new Request('http://localhost/health'), env)).status, 200);
   assert.equal((await worker.fetch(new Request('https://worker.example/health'), {})).status, 503);
