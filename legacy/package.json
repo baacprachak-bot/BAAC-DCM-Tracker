@@ -1,0 +1,1 @@
+{"name":"baac-dcm-tracker","version":"0.1.0","private":true,"type":"module","engines":{"node":">=24"},"scripts":{"start":"node --env-file-if-exists=.env server.js","dev":"DEMO_MODE=true node --env-file-if-exists=.env server.js","test":"node --test","line:menu":"node --env-file-if-exists=.env scripts/rich-menu.js"}}

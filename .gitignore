@@ -1,0 +1,8 @@
+.env
+data/
+node_modules/
+*.log
+dist/
+.wrangler/
+.dev.vars
+playwright-report/
