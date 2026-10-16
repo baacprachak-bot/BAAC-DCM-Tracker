@@ -1,11 +1,13 @@
 const $ = selector => document.querySelector(selector);
 const names = { credit_head: 'หัวหน้าฝ่ายสินเชื่อ', assistant_manager: 'ผู้ช่วยผู้จัดการสาขา', manager: 'ผู้จัดการสาขา', admin: 'ผู้ดูแลระบบ' };
+const sandboxPage = /^\/sandbox\/?$/.test(location.pathname);
+const apiPrefix = sandboxPage ? '/sandbox' : '';
 let config, me, token, page = new URLSearchParams(location.search).get('page') || 'create', listPage = 1, search = '', rendering = 0;
 const text = (tag, value, className) => { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node; };
 const date = value => new Date(value).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' });
 function notify(value = '', error = false) { $('#message').textContent = value; $('#message').hidden = !value; $('#message').className = error ? 'error' : ''; }
 async function api(path, options = {}) {
- const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...(config.demo ? { 'x-demo-role': $('#role').value } : { Authorization: `Bearer ${token}` }) } });
+ const response = await fetch(apiPrefix + path, { ...options, headers: { 'Content-Type': 'application/json', ...((config.demo || config.sandbox) ? { 'x-demo-role': $('#role').value } : {}), ...(!config.demo ? { Authorization: `Bearer ${token}` } : {}) } });
  const result = await response.json(); if (!response.ok) throw new Error(result.error || 'ระบบขัดข้อง'); return result;
 }
 function title(heading, subtitle, badge) { const row = text('div', '', 'section-title'); const left = text('div', ''); left.append(text('h2', heading), text('p', subtitle, 'muted')); row.append(left); if (badge) row.append(badge); $('#content').append(row); }
@@ -56,6 +58,9 @@ async function listScreen(version) {
 }
 async function staffScreen(version) {
  const staff = await api('/api/staff'); if (version !== rendering) return; title('กำหนดสิทธิ์เจ้าหน้าที่', 'เจ้าหน้าที่ต้องเปิดแอปและเข้าสู่ LINE ก่อน จึงจะปรากฏในรายการนี้');
+ if (!config.sandbox) {
+  const box = text('div', '', 'hint'); const link = text('a', 'เปิดพื้นที่ทดลอง · สลับบทบาทและลองข้อมูลสมมติ'); link.href = '/sandbox'; box.append(link); $('#content').append(box);
+ }
  for (const member of staff) {
   const card = text('article', '', 'staff'); card.append(text('h3', member.display_name), text('p', ({ pending: 'รอรับสิทธิ์', active: 'ใช้งานได้', suspended: 'ระงับการใช้งาน' })[member.status], 'muted'), text('code', member.line_user_id));
   if (member.line_user_id !== me.id) {
@@ -67,9 +72,16 @@ async function staffScreen(version) {
  }
 }
 async function boot() {
- config = await (await fetch('/api/config')).json();
- if (config.demo) { $('#demo').hidden = false; $('#role').onchange = async () => { try { await identify(); page = me.role === 'credit_head' ? 'create' : me.role === 'admin' ? 'staff' : 'pending'; listPage = 1; search = ''; await render(); } catch (e) { notify(e.message, true); } }; }
- else {
+ config = await (await fetch(apiPrefix + '/api/config')).json();
+ if (config.demo || config.sandbox) {
+  $('#demo').hidden = false;
+  if (config.sandbox) {
+   $('#demo span').textContent = 'พื้นที่ทดลอง · ฐานข้อมูลสมมติแยก';
+   const back = text('a', 'กลับระบบจริง'); back.href = '/'; $('#demo').append(back);
+  }
+  $('#role').onchange = async () => { try { await identify(); page = me.role === 'credit_head' ? 'create' : me.role === 'admin' ? 'staff' : 'pending'; listPage = 1; search = ''; await render(); } catch (e) { notify(e.message, true); } };
+ }
+ if (!config.demo) {
   if (!config.liffId) throw new Error('ยังไม่ได้ตั้งค่า LIFF กรุณาติดต่อผู้ดูแล');
   await new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js'; script.onload = resolve; script.onerror = () => reject(new Error('โหลด LINE ไม่สำเร็จ กรุณาลองใหม่')); document.head.append(script); });
   await liff.init({ liffId: config.liffId }); if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; } token = liff.getIDToken(); if (!token) throw new Error('กรุณาเปิดสิทธิ์ openid ของ LIFF'); const redirected = new URLSearchParams(location.search).get('page'); if (redirected) page = redirected;

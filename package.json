@@ -8,6 +8,7 @@
     "dev": "node --env-file-if-exists=.env tools/dev.js",
     "start": "node --env-file-if-exists=.env tools/dev.js",
     "build": "node tools/build.js",
+    "demo:seed": "node --use-env-proxy --env-file-if-exists=.env tools/seed-sandbox.js",
     "test": "node --test --test-isolation=none test/*.test.js",
     "deploy": "node --use-env-proxy --env-file-if-exists=.env tools/deploy.js",
     "line:menu": "node --use-env-proxy --env-file-if-exists=.env tools/line-menu.js"

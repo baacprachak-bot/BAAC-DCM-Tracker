@@ -11,14 +11,14 @@ test('deployment requires real credentials before making external requests', asy
 
 test('deployment provisions one database, uploads unified production Worker, and checks health', async () => {
   const calls = []; let metadata;
-  const env = { CLOUDFLARE_API_TOKEN: 'test-only', CLOUDFLARE_ACCOUNT_ID: 'f'.repeat(32), LINE_LOGIN_CHANNEL_ID: 'test-channel', WORKER_NAME: 'test-dcm-worker', LIFF_ID: '123-test', ADMIN_LINE_USER_IDS: 'U-admin' };
+  const env = { CLOUDFLARE_API_TOKEN: 'test-only', CLOUDFLARE_ACCOUNT_ID: 'f'.repeat(32), LINE_LOGIN_CHANNEL_ID: 'test-channel', WORKER_NAME: 'test-dcm-worker', LIFF_ID: '123-test', ADMIN_LINE_USER_IDS: 'U-admin', LINE_CHANNEL_ACCESS_TOKEN: 'test-menu-only-token' };
   const fetcher = async (url, options = {}) => {
     calls.push({ url, method: options.method || 'GET' });
     if (url.endsWith('/health')) return Response.json({ ok: true });
     let result = {};
     if (url.endsWith('/settings')) return new Response('{}', { status: 404 });
     if (url.includes('/d1/database?')) result = [];
-    else if (url.endsWith('/d1/database')) result = { uuid: 'test-database' };
+    else if (url.endsWith('/d1/database')) result = { uuid: JSON.parse(options.body).name.endsWith('-sandbox') ? 'test-sandbox' : 'test-database' };
     else if (url.endsWith('/query')) assert.match(JSON.parse(options.body).sql, /CREATE TABLE IF NOT EXISTS requests/);
     else if (options.body instanceof FormData) {
       metadata = JSON.parse(options.body.get('metadata'));
@@ -30,7 +30,9 @@ test('deployment provisions one database, uploads unified production Worker, and
   const result = await deploy(env, fetcher, { persist: false, log: () => {} });
   assert.equal(result.url, 'https://test-dcm-worker.test-account.workers.dev');
   assert.equal(metadata.bindings.find(b => b.name === 'DB').id, 'test-database');
+  assert.equal(metadata.bindings.find(b => b.name === 'SANDBOX_DB').id, 'test-sandbox');
   assert.ok(!metadata.bindings.some(b => b.name === 'LOCAL_DEMO'));
+  assert.ok(!metadata.bindings.some(b => b.name === 'LINE_CHANNEL_ACCESS_TOKEN'));
   assert.deepEqual(metadata.keep_bindings, ['secret_text']);
   assert.equal(calls.filter(c => c.method === 'PUT').length, 1);
 });

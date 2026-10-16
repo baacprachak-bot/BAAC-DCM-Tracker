@@ -23,15 +23,21 @@ const admins = env => (env.ADMIN_LINE_USER_IDS || '').split(',').map(s => s.trim
 function localDemo(request, env) { return env.LOCAL_DEMO === 'true' && ['localhost', '127.0.0.1', '[::1]'].includes(new URL(request.url).hostname); }
 
 export function createHandler({ fetcher = globalThis.fetch, assets = ASSETS } = {}) {
+  async function simulatedIdentity(role, DB) {
+    if (!['admin', ...staffRoles, 'pending'].includes(role)) fail(401, 'เลือกบทบาทสำหรับทดลอง');
+    const id = `demo-${role}`;
+    const name = ({ credit_head: 'หัวหน้าสินเชื่อ (ทดสอบ)', assistant_manager: 'ผู้ช่วยผู้จัดการ (ทดสอบ)', manager: 'ผู้จัดการ (ทดสอบ)', admin: 'ผู้ดูแล (ทดสอบ)', pending: 'เจ้าหน้าที่ใหม่ (ทดสอบ)' })[role];
+    const now = new Date().toISOString();
+    await DB.prepare('INSERT OR IGNORE INTO staff(line_user_id,display_name,role,status,created_at,updated_at) VALUES(?,?,?,?,?,?)').bind(id, name, staffRoles.includes(role) ? role : null, role === 'pending' ? 'pending' : 'active', now, now).run();
+    await DB.prepare('UPDATE staff SET display_name=? WHERE line_user_id=?').bind(name, id).run();
+    if (role === 'admin') return { id, name, role, status: 'active' };
+    const staff = await DB.prepare('SELECT role,status FROM staff WHERE line_user_id=?').bind(id).first();
+    return { id, name, role: staff.role, status: staff.status };
+  }
   async function identity(request, env) {
     let id, name;
     if (localDemo(request, env)) {
-      const role = request.headers.get('x-demo-role');
-      if (!['admin', ...staffRoles, 'pending'].includes(role)) fail(401, 'เลือกบทบาทสำหรับทดลอง');
-      id = `demo-${role}`; name = ({ credit_head: 'หัวหน้าสินเชื่อ (ทดสอบ)', assistant_manager: 'ผู้ช่วยผู้จัดการ (ทดสอบ)', manager: 'ผู้จัดการ (ทดสอบ)', admin: 'ผู้ดูแล (ทดสอบ)', pending: 'เจ้าหน้าที่ใหม่ (ทดสอบ)' })[role];
-      await env.DB.prepare('INSERT OR IGNORE INTO staff(line_user_id,display_name,role,status,created_at,updated_at) VALUES(?,?,?,?,?,?)').bind(id, name, staffRoles.includes(role) ? role : null, role === 'pending' ? 'pending' : 'active', new Date().toISOString(), new Date().toISOString()).run();
-      await env.DB.prepare('UPDATE staff SET display_name=? WHERE line_user_id=?').bind(name, id).run();
-      if (role === 'admin') return { id, name, role, status: 'active' };
+      return simulatedIdentity(request.headers.get('x-demo-role'), env.DB);
     } else {
       const token = request.headers.get('authorization')?.match(/^Bearer (\S+)$/)?.[1];
       if (!token) fail(401, 'กรุณาเข้าสู่ระบบผ่าน LINE');
@@ -63,12 +69,14 @@ export function createHandler({ fetcher = globalThis.fetch, assets = ASSETS } = 
   return async (request, env, ctx = { waitUntil() {} }) => {
     try {
       const url = new URL(request.url);
+      const sandbox = url.pathname.startsWith('/sandbox/api/');
+      if (sandbox) url.pathname = url.pathname.slice('/sandbox'.length);
       if (request.method === 'GET' && url.pathname === '/health') {
         if (!env.DB) return json({ ok: false }, 503);
         await env.DB.prepare('SELECT COUNT(*) AS count FROM staff').first();
         return json({ ok: true, version: '1.0.0' });
       }
-      if (request.method === 'GET' && url.pathname === '/api/config') return json({ demo: localDemo(request, env), liffId: env.LIFF_ID || '' });
+      if (request.method === 'GET' && url.pathname === '/api/config') return json({ demo: localDemo(request, env), sandbox, liffId: env.LIFF_ID || '' });
       if (request.method === 'POST' && url.pathname === '/webhook') {
         if (!env.LINE_CHANNEL_SECRET) fail(503, 'ยังไม่ได้ตั้งค่า LINE webhook');
         const body = await readBody(request);
@@ -85,7 +93,13 @@ export function createHandler({ fetcher = globalThis.fetch, assets = ASSETS } = 
       if (url.pathname.startsWith('/api/')) {
         if (request.method === 'POST' && request.headers.get('origin') && request.headers.get('origin') !== url.origin) fail(403, 'ต้นทางคำขอไม่ถูกต้อง');
         if (!env.DB) fail(503, 'ยังไม่ได้เชื่อมฐานข้อมูล');
-        const user = await identity(request, env);
+        let user;
+        if (sandbox) {
+          if (!localDemo(request, env)) allow(await identity(request, env), ['admin']);
+          if (!env.SANDBOX_DB || env.SANDBOX_DB === env.DB) fail(503, 'ยังไม่ได้เตรียมฐานข้อมูลทดลองแยก');
+          env = { ...env, DB: env.SANDBOX_DB };
+          user = await simulatedIdentity(request.headers.get('x-demo-role'), env.DB);
+        } else user = await identity(request, env);
         if (request.method === 'GET' && url.pathname === '/api/me') return json(user);
         if (url.pathname === '/api/staff' && request.method === 'GET') {
           allow(user, ['admin']);
@@ -130,8 +144,9 @@ export function createHandler({ fetcher = globalThis.fetch, assets = ASSETS } = 
         }
         return json({ error: 'ไม่พบรายการ' }, 404);
       }
-      if (request.method !== 'GET' || !Object.hasOwn(assets, url.pathname)) return json({ error: 'ไม่พบหน้า' }, 404);
-      const asset = assets[url.pathname];
+      const assetPath = ['/sandbox', '/sandbox/'].includes(url.pathname) ? '/' : url.pathname;
+      if (request.method !== 'GET' || !Object.hasOwn(assets, assetPath)) return json({ error: 'ไม่พบหน้า' }, 404);
+      const asset = assets[assetPath];
       return new Response(asset.body, { headers: { ...securityHeaders, 'Content-Type': asset.type } });
     } catch (error) { return json({ error: error.status ? error.message : 'ระบบขัดข้อง กรุณาลองใหม่' }, error.status || 500); }
   };

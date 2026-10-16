@@ -34,13 +34,28 @@ export async function deploy(env = process.env, fetcher = globalThis.fetch, { pe
     writeFileSync(statePath, JSON.stringify({ account, name, databaseId }));
   }
   await api(`${root}/d1/database/${databaseId}/query`, { method: 'POST', body: JSON.stringify({ sql: readFileSync(new URL('../migrations/0001.sql', import.meta.url), 'utf8') }) });
+  const sandboxName = `${name}-sandbox`;
+  const sandboxDatabases = await api(`${root}/d1/database?name=${encodeURIComponent(sandboxName)}`);
+  let sandboxDB = sandboxDatabases.find(db => db.name === sandboxName);
+  const sandboxBinding = existing?.bindings?.find(b => b.name === 'SANDBOX_DB');
+  if (sandboxDB && (sandboxDB.uuid || sandboxDB.id) !== sandboxBinding?.id && (sandboxDB.uuid || sandboxDB.id) !== state.sandboxDatabaseId) throw new Error('พบฐานข้อมูลทดลองชื่อเดียวกันที่ยังไม่ยืนยันว่าเป็นของระบบนี้');
+  if (!sandboxDB) sandboxDB = await api(`${root}/d1/database`, { method: 'POST', body: JSON.stringify({ name: sandboxName }) });
+  const sandboxDatabaseId = sandboxDB.uuid || sandboxDB.id;
+  if (sandboxDatabaseId === databaseId) throw new Error('Sandbox database must be separate from production');
+  if (persist) writeFileSync(statePath, JSON.stringify({ account, name, databaseId, sandboxDatabaseId }));
+  await api(`${root}/d1/database/${sandboxDatabaseId}/query`, { method: 'POST', body: JSON.stringify({ sql: readFileSync(new URL('../migrations/0001.sql', import.meta.url), 'utf8') }) });
   const bindings = [
     { name: 'DB', type: 'd1', id: databaseId },
+    { name: 'SANDBOX_DB', type: 'd1', id: sandboxDatabaseId },
     { name: 'LIFF_ID', type: 'plain_text', text: env.LIFF_ID || '2012048449-ZBktvJBu' },
     { name: 'LINE_LOGIN_CHANNEL_ID', type: 'plain_text', text: env.LINE_LOGIN_CHANNEL_ID },
     { name: 'ADMIN_LINE_USER_IDS', type: 'plain_text', text: env.ADMIN_LINE_USER_IDS ?? existing?.bindings?.find(b => b.name === 'ADMIN_LINE_USER_IDS')?.text ?? '' },
   ];
-  for (const secret of ['LINE_CHANNEL_SECRET', 'LINE_CHANNEL_ACCESS_TOKEN']) if (env[secret]) bindings.push({ name: secret, type: 'secret_text', text: env[secret] });
+  // Menu-only tokens may be proxy-bound to LINE destinations. Provision webhook
+  // secrets only when explicitly configured for delivery to Cloudflare too.
+  if (env.DEPLOY_LINE_WEBHOOK === 'true') {
+    for (const secret of ['LINE_CHANNEL_SECRET', 'LINE_CHANNEL_ACCESS_TOKEN']) if (env[secret]) bindings.push({ name: secret, type: 'secret_text', text: env[secret] });
+  }
   build();
   const form = new FormData();
   form.set('metadata', JSON.stringify({ main_module: 'worker.mjs', compatibility_date: '2026-10-01', bindings, keep_bindings: ['secret_text'], tags: [tag] }));
@@ -51,7 +66,7 @@ export async function deploy(env = process.env, fetcher = globalThis.fetch, { pe
   const url = `https://${name}.${subdomain.subdomain}.workers.dev`;
   const health = await fetcher(`${url}/health`, { signal: AbortSignal.timeout(20000) });
   if (!health.ok || !(await health.json()).ok) throw new Error('Deployed Worker did not pass database health check');
-  const result = { url, databaseId, workerName: name };
+  const result = { url, databaseId, sandboxDatabaseId, workerName: name };
   if (persist) {
     mkdirSync(new URL('../dist/', import.meta.url), { recursive: true });
     writeFileSync(new URL('../dist/deployment.json', import.meta.url), JSON.stringify(result, null, 2));

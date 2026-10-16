@@ -50,6 +50,8 @@
 
 ถ้าต้องการตอบข้อความเมนูในแชต ให้ตั้ง `LINE_CHANNEL_SECRET` กับ `LINE_CHANNEL_ACCESS_TOKEN` บน Worker และกำหนด Webhook URL เป็น `<URL ระบบใหม่>/webhook` จากนั้นใช้ Verify ใน Messaging API console หากยังมีคำสั่งเก่าที่ต้องใช้ อย่าเปลี่ยน webhook จากระบบเก่าจนตรวจการย้ายข้อมูลและขอบเขตงานแล้ว การเปิด LIFF ผ่าน URI Rich Menu ไม่จำเป็นต้องใช้ webhook
 
+Token ที่ใช้ตั้ง Rich Menu อย่างเดียวต้องอนุญาตปลายทาง `api.line.me` และ `api-data.line.me` เท่านั้น สคริปต์ deploy จะไม่คัดลอก token นี้เข้า Worker โดยอัตโนมัติ หากต้องการให้ deploy จัดการ webhook secrets ด้วย ให้ตั้ง `DEPLOY_LINE_WEBHOOK=true` และตั้งการส่ง secret ไปยัง `api.cloudflare.com` อย่างชัดเจนก่อน deploy
+
 ## 5. ซิงค์ GitHub แล้ว deploy ตามโค้ด
 
 ใน GitHub repository → Settings → Secrets and variables → Actions:

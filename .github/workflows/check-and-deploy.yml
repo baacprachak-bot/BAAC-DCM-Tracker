@@ -26,6 +26,7 @@ jobs:
           ADMIN_LINE_USER_IDS: ${{ vars.ADMIN_LINE_USER_IDS }}
           LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          DEPLOY_LINE_WEBHOOK: ${{ vars.DEPLOY_LINE_WEBHOOK }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
             echo '::notice::Tests and build passed. Deployment awaits CLOUDFLARE_API_TOKEN in repository secrets.'
