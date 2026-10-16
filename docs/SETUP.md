@@ -48,6 +48,8 @@
 
 มีภาพพร้อมใช้อัปโหลดที่ `docs/rich-menu.png` และโครง API ที่สร้างจาก `npm run line:menu` หรือให้สคริปต์ตั้งเมนูทั้งหมดด้วย `npm run line:menu -- --publish` เมื่อใส่ `LINE_CHANNEL_ACCESS_TOKEN` อย่างปลอดภัยแล้ว คำสั่งนี้จะเปลี่ยน default Rich Menu ของ OA สำหรับทุกคน จึงต้องทดสอบ LIFF ใหม่ก่อน
 
+สคริปต์ตรวจบัญชี OA ก่อนแก้ไข เก็บ ID และรายละเอียดเมนูเดิมไว้ใน `dist/line-menu-backup-*.json` ไม่ลบเมนูเดิม เปลี่ยน default หลังอัปโหลดภาพสำเร็จเท่านั้น และอ่านกลับเพื่อยืนยันว่า default ใหม่ตรงกับรายการที่สร้าง การแสดงค่า token เป็นจุดในหน้าจอยังไม่ยืนยันว่าค่าถูกบันทึกและส่งเข้ามาในเครื่องแล้ว
+
 ถ้าต้องการตอบข้อความเมนูในแชต ให้ตั้ง `LINE_CHANNEL_SECRET` กับ `LINE_CHANNEL_ACCESS_TOKEN` บน Worker และกำหนด Webhook URL เป็น `<URL ระบบใหม่>/webhook` จากนั้นใช้ Verify ใน Messaging API console หากยังมีคำสั่งเก่าที่ต้องใช้ อย่าเปลี่ยน webhook จากระบบเก่าจนตรวจการย้ายข้อมูลและขอบเขตงานแล้ว การเปิด LIFF ผ่าน URI Rich Menu ไม่จำเป็นต้องใช้ webhook
 
 Token ที่ใช้ตั้ง Rich Menu อย่างเดียวต้องอนุญาตปลายทาง `api.line.me` และ `api-data.line.me` เท่านั้น สคริปต์ deploy จะไม่คัดลอก token นี้เข้า Worker โดยอัตโนมัติ หากต้องการให้ deploy จัดการ webhook secrets ด้วย ให้ตั้ง `DEPLOY_LINE_WEBHOOK=true` และตั้งการส่ง secret ไปยัง `api.cloudflare.com` อย่างชัดเจนก่อน deploy
